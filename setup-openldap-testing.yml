@@ -1,0 +1,77 @@
+---
+
+# ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.txt setup-openldap-testing.yml -u ehf -b
+
+# install pip3.11  (sudo yum install python3.11-pip)
+# then, pip3.11 install jmespath
+# maybe: sudo yum install python3-jmespath
+
+- hosts: ansibledev
+  gather_facts: False
+  vars:
+    pb_user_id: "{{ lookup('env', 'USER') }}"
+    pb_user_home: "{{ lookup('env', 'HOME') }}"
+  tasks:
+    - name: "copy vault pw"
+      copy:
+        src: "{{ pb_user_home }}/.ogpw"
+        dest: /home/{{ pb_user_id }}/.ogpw
+        owner: "{{ pb_user_id }}"
+        group: "{{ pb_user_id }}"
+        mode: '0600'
+      tags: 
+        - init-env
+
+    - name: "copy priv key"
+      copy:
+        src: "{{ pb_user_home }}/.ssh/id_ed25519_test"
+        dest: /home/{{ pb_user_id }}/.ssh/id_ed25519
+        owner: "{{ pb_user_id }}"
+        group: "{{ pb_user_id }}"
+        mode: '0600'
+      tags: 
+        - init-env
+
+    - name: "chown cloned repo location"
+      file:
+        path: /home/{{ pb_user_id }}/Workspace
+        owner: ehf
+        group: ehf
+        recurse: True
+      become: True
+      tags: 
+        - init-repo
+
+    - name: "run collections installation"
+      command: ansible-galaxy install -r requirements.yml
+      args:
+        chdir: /home/{{ pb_user_id }}/Workspace/ansible-openldap-testing
+      become: no
+      tags: 
+        - init-repo
+
+    - name: "add mybashrc"
+      blockinfile:
+        path: /home/{{ pb_user_id }}/.bashrc
+        insertafter: "EOF"
+        block: "{{ lookup('file', './mybashrc.txt') }}"
+      tags: 
+        - init-env
+
+    - name: "install req'd packages"
+      dnf:
+        name: [ 'python3-jmespath', 'python3.11-pip', 'openldap-clients', 'openldap-devel', 'python3-libs', 'python3-devel', 'python3-ldap', 'platform-python-devel', 'python3.11-devel', 'python3.11-libs' ]
+        state: present
+        disablerepo: "google-compute-engine,google-cloud-sdk"
+      tags:
+        - init-env
+
+    - name: "pip install jmsepath and python-ldap"
+      ansible.builtin.pip:
+        name: [ 'jmespath', 'python-ldap' ]
+        executable: /usr/bin/pip3
+      become: no
+      tags:
+        - init-env
+
+
