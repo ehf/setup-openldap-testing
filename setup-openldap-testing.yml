@@ -11,7 +11,36 @@
   vars:
     pb_user_id: "{{ lookup('env', 'USER') }}"
     pb_user_home: "{{ lookup('env', 'HOME') }}"
+    install_pip:
+      - jmespath
+      - python-ldap
+    install_pkgs:
+      - gcc
+      - rsync
+      - openldap-clients
+      - openldap-devel
+      - python3-virtualenv
+      - python3-jmespath
+      - python3-libs
+      - python3-devel
+      - python3-ldap
+      - platform-python-devel
+      - python3.11-pip
+      - python3.11-devel
+      - python3.11-libs
   tasks:
+    - name: "disable google repos"
+      ini_file:
+        path: /etc/yum.repos.d/google-cloud.repo
+        section: "{{ item }}"
+        option: enabled
+        value: 0
+      loop:
+        - google-compute-engine
+        - google-cloud-sdk
+      tags:
+        - init-env
+
     - name: "copy vault pw"
       copy:
         src: "{{ pb_user_home }}/.ogpw"
@@ -60,16 +89,24 @@
 
     - name: "install req'd packages"
       dnf:
-        name: [ 'python3-jmespath', 'python3.11-pip', 'openldap-clients', 'openldap-devel', 'python3-libs', 'python3-devel', 'python3-ldap', 'platform-python-devel', 'python3.11-devel', 'python3.11-libs' ]
+        name: "{{ install_pkgs }}"
         state: present
         disablerepo: "google-compute-engine,google-cloud-sdk"
       tags:
         - init-env
 
-    - name: "pip install jmsepath and python-ldap"
+    - name: "pip3 install jmsepath and python-ldap"
       ansible.builtin.pip:
-        name: [ 'jmespath', 'python-ldap' ]
+        name: "{{ install_pip }}"
         executable: /usr/bin/pip3
+      become: no
+      tags:
+        - init-env
+
+    - name: "pip3.11 install jmsepath and python-ldap"
+      ansible.builtin.pip:
+        name: "{{ install_pip }}"
+        executable: /usr/bin/pip3.11
       become: no
       tags:
         - init-env
